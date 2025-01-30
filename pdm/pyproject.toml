@@ -1,0 +1,26 @@
+[project]
+name = "notification-hub-backend"
+version = "0.1.0"
+description = "Default template for PDM package"
+dependencies = [
+    "django==5.1.4",
+    "django-redis==5.4.0",
+    "django-cors-headers==4.6.0",
+    "djangorestframework==3.15.2",
+    "celery==5.4.0",
+    "flower==2.0.1",
+    "django-celery-beat==2.7.0",
+    "django-celery-results==2.5.1",
+    "psycopg2-binary==2.9.10",
+    "slack_sdk==3.34.0",
+    "uvicorn[standard]==0.34.0",
+    "gunicorn==23.0.0",
+]
+requires-python = "==3.12.*"  # Python 버전 지정
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.3.0",
+]
+[tool.pdm]
+distribution = false

@@ -1,0 +1,47 @@
+# build stage
+FROM python:3.12-slim AS builder
+
+RUN set -eux \
+    && apt update \
+    && apt upgrade -y \
+    && apt -y install build-essential python3-dev gcc
+
+# install PDM
+RUN pip install -U pip setuptools wheel
+RUN pip install pdm
+
+# copy files
+ARG APPENV
+COPY pyproject.toml .env.${APPENV} /project/
+COPY ./notification /project/notification
+
+# python.use_venv False - 이게 있어야 build할 때 pdm.lock이 생성됨
+WORKDIR /project
+RUN pdm config python.use_venv False
+RUN pdm lock
+RUN mkdir __pypackages__ && pdm sync --prod --no-editable
+
+FROM python:3.12-slim
+
+# Set environment variables
+ENV PYTHONFAULTHANDLER=1 \
+    PYTHONUNBUFFERED=1
+
+RUN pip install -U pip setuptools wheel
+
+# retrieve packages from build stage
+ENV PYTHONPATH=/project/pkgs
+COPY --from=builder /project/__pypackages__/3.12/lib /project/pkgs
+
+# retrieve executables
+COPY --from=builder /project/__pypackages__/3.12/bin/* /bin/
+COPY --from=builder /project/notification /project/notification
+
+ARG APPENV
+ENV WHOAMI=${APPENV}
+
+WORKDIR /project/notification
+
+# Run the application using uvicorn
+# CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["sh", "scripts/start.sh"]

@@ -1,0 +1,71 @@
+version: "3.8"
+
+x-common-build:
+  &common-build
+  build:
+    context: .
+    dockerfile: Dockerfile.django
+    args:
+      APPENV: ${COMPOSE_PROFILES:-local}  # Default to 'local' if not specified
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    volumes:
+      - ./notification/media/:/media/
+      - ./notification/static/:/static/
+      - ./nginx/log:/var/log/nginx/
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
+  backend:
+    <<: *common-build
+    volumes:
+      - ./notification:/project/notification
+    depends_on:
+      - postgres
+      - redis
+    platform: linux/amd64
+    env_file: .env.${COMPOSE_PROFILES:-local}
+    profiles: ["local", "test"]
+
+  celery:
+    <<: *common-build
+    volumes:
+      - ./notification:/project/notification
+    depends_on:
+      - postgres
+      - redis
+    command: /project/notification/scripts/celery_start.sh
+    env_file: .env.${COMPOSE_PROFILES:-local}
+    profiles: ["local", "test"]
+
+  flower:
+    <<: *common-build
+    volumes:
+      - ./notification:/project/notification
+    depends_on:
+      - celery
+    command: bash -c "sleep 5 && cd /project/notification && celery -A config flower --basic-auth=${FLOWER_ID}:${FLOWER_PW}"
+    ports:
+      - "5555:5555"
+    env_file: .env.${COMPOSE_PROFILES:-local}
+    profiles: ["local", "test"]
+  
+  postgres:
+    image: postgres:15.4
+    volumes:
+      - ./.pgdata:/var/lib/postgresql/data
+    env_file: .env.${COMPOSE_PROFILES:-local}
+    profiles: ["local", "test"]
+  
+  redis:
+    image: redis:7.0.7
+
+# Usage:
+# COMPOSE_PROFILES=local docker-compose up --build
